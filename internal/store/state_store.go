@@ -16,7 +16,7 @@ import (
 // RuleProgressDAO GORM 映射表 rule_progress
 type RuleProgressDAO struct {
 	ID              int64  `gorm:"primaryKey;autoIncrement"`
-	Biz             string `gorm:"uniqueIndex:uk_biz_user_rule;not null"`
+	Biz             string `gorm:"uniqueIndex:uk_biz_user_rule;not null;type:varchar(100)"`
 	UserID          int64  `gorm:"uniqueIndex:uk_biz_user_rule;not null;column:user_id"`
 	RuleID          int64  `gorm:"uniqueIndex:uk_biz_user_rule;not null;column:rule_id"`
 	CurrentLevel    int64  `gorm:"default:0;column:current_level"`
@@ -31,10 +31,10 @@ func (RuleProgressDAO) TableName() string { return "rule_progress" }
 // RuleBucketDAO GORM 映射表 rule_buckets
 type RuleBucketDAO struct {
 	ID        int64  `gorm:"primaryKey;autoIncrement"`
-	Biz       string `gorm:"uniqueIndex:uk_bucket;not null"`
+	Biz       string `gorm:"uniqueIndex:uk_bucket;not null;type:varchar(100)"`
 	UserID    int64  `gorm:"uniqueIndex:uk_bucket;not null;column:user_id"`
 	RuleID    int64  `gorm:"uniqueIndex:uk_bucket;not null;column:rule_id"`
-	BucketKey string `gorm:"uniqueIndex:uk_bucket;not null;column:bucket_key"`
+	BucketKey string `gorm:"uniqueIndex:uk_bucket;not null;column:bucket_key;type:varchar(50)"`
 	Value     int64  `gorm:"default:0"`
 	UpdatedAt int64  `gorm:"column:updated_at"`
 }
