@@ -16,9 +16,10 @@ func New(cfg domain.ConditionConfig) (domain.Condition, error) {
 	if cfg.Expression == "" {
 		return &alwaysTrue{}, nil
 	}
-	env, err := cel.NewEnv(
-		cel.Variable("payload", cel.MapType(cel.StringType, cel.DynType)),
-	)
+	// 使用 cel.DynType 声明一个占位变量，实际 activation 直接传 payload 扁平 map，
+	// CEL 会从 activation 中按变量名查找。通过 cel.EnableMacroCallTracking 不需要，
+	// 只需要 env 不开启强类型检查：使用 env.Parse 而非 env.Compile 跳过类型检查。
+	env, err := cel.NewEnv()
 	if err != nil {
 		return nil, fmt.Errorf("condition: cel env: %w", err)
 	}
@@ -34,9 +35,8 @@ func New(cfg domain.ConditionConfig) (domain.Condition, error) {
 }
 
 func (c *CELCondition) Match(payload map[string]interface{}) (bool, error) {
-	out, _, err := c.prg.Eval(map[string]interface{}{
-		"payload": payload,
-	})
+	// 将 payload 扁平展开作为顶层变量，表达式可直接写 `coin > 0`
+	out, _, err := c.prg.Eval(payload)
 	if err != nil {
 		return false, fmt.Errorf("condition: eval: %w", err)
 	}
