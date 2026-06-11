@@ -35,3 +35,11 @@ type StateStore interface {
 type EventBus interface {
 	Publish(ctx context.Context, event RuleEvent) error
 }
+
+// RuleRepository 规则的持久化接口
+type RuleRepository interface {
+	Save(ctx context.Context, rule Rule) error
+	Delete(ctx context.Context, biz string, ruleID int64) error
+	FindByEventType(ctx context.Context, eventType string) ([]Rule, error)
+	FindAll(ctx context.Context) ([]Rule, error)
+}
