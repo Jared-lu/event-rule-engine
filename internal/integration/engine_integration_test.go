@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Jared-lu/event-rule-engine/internal/domain"
+	"github.com/Jared-lu/event-rule-engine/internal/repository"
 	"github.com/Jared-lu/event-rule-engine/internal/service"
 	"github.com/Jared-lu/event-rule-engine/internal/store"
 )
@@ -110,13 +111,20 @@ func setupTestEnv(t *testing.T) *testEnv {
 // buildEngine creates a fresh Engine + StateStore + mocked EventBus.
 // Each test should call this to get isolated components (but they share the
 // same DB/Redis — use distinct userIDs per rule to avoid cross-pollution).
-func (e *testEnv) buildEngine(t *testing.T) (*service.Engine, *mockEventBus) {
+func (e *testEnv) buildEngine(t *testing.T) (*service.Engine, *service.RuleRegistry, *mockEventBus) {
 	t.Helper()
 	bus := &mockEventBus{}
 	st := store.NewStateStore(e.db, e.rdb)
 	idempotency := store.NewRedisIdempotency(e.rdb)
-	eng := service.NewEngine(st, bus, idempotency)
-	return eng, bus
+
+	ruleDAO := repository.NewRuleDAO(e.db)
+	require.NoError(t, ruleDAO.AutoMigrate())
+	ruleRepo := repository.NewRuleRepository(ruleDAO)
+	registry, err := service.NewRuleRegistry(context.Background(), ruleRepo)
+	require.NoError(t, err)
+
+	eng := service.NewEngine(registry, st, bus, idempotency)
+	return eng, registry, bus
 }
 
 // waitTriggered polls until at least minCount events for the given ruleID appear,
@@ -160,7 +168,7 @@ func nextEID() int64 {
 
 func TestRule1_GiftCoin_EveryMillion(t *testing.T) {
 	env := setupTestEnv(t)
-	eng, bus := env.buildEngine(t)
+	eng, registry, bus := env.buildEngine(t)
 	ctx := context.Background()
 
 	const (
@@ -179,7 +187,7 @@ func TestRule1_GiftCoin_EveryMillion(t *testing.T) {
 		Aggregator: domain.AggregatorConfig{Type: "sum", Field: "coin"},
 		Trigger:   domain.TriggerConfig{Type: "every", Step: 1000000},
 	}
-	require.NoError(t, eng.RegisterRule(rule))
+	require.NoError(t, registry.Register(ctx, rule))
 
 	now := time.Now().Unix()
 
@@ -215,7 +223,7 @@ func TestRule1_GiftCoin_EveryMillion(t *testing.T) {
 
 func TestRule2_GiftCount_Every100(t *testing.T) {
 	env := setupTestEnv(t)
-	eng, bus := env.buildEngine(t)
+	eng, registry, bus := env.buildEngine(t)
 	ctx := context.Background()
 
 	const (
@@ -234,7 +242,7 @@ func TestRule2_GiftCount_Every100(t *testing.T) {
 		Aggregator: domain.AggregatorConfig{Type: "count"},
 		Trigger:   domain.TriggerConfig{Type: "every", Step: 100},
 	}
-	require.NoError(t, eng.RegisterRule(rule))
+	require.NoError(t, registry.Register(ctx, rule))
 
 	now := time.Now().Unix()
 
@@ -266,7 +274,7 @@ func TestRule2_GiftCount_Every100(t *testing.T) {
 
 func TestRule3_Sliding3d_AllGte500(t *testing.T) {
 	env := setupTestEnv(t)
-	eng, bus := env.buildEngine(t)
+	eng, registry, bus := env.buildEngine(t)
 	ctx := context.Background()
 
 	const (
@@ -285,7 +293,7 @@ func TestRule3_Sliding3d_AllGte500(t *testing.T) {
 		Aggregator: domain.AggregatorConfig{Type: "sum", Field: "amount"},
 		Trigger:   domain.TriggerConfig{Type: "all_gte", Threshold: 500},
 	}
-	require.NoError(t, eng.RegisterRule(rule))
+	require.NoError(t, registry.Register(ctx, rule))
 
 	// Use timestamps that produce 3 consecutive days in the recent past.
 	// We pick days D-2, D-1, D so that ActiveKeys(now) covers all three.
@@ -326,7 +334,7 @@ func TestRule3_Sliding3d_AllGte500(t *testing.T) {
 
 func TestRule4_FixedMonth_Threshold100(t *testing.T) {
 	env := setupTestEnv(t)
-	eng, bus := env.buildEngine(t)
+	eng, registry, bus := env.buildEngine(t)
 	ctx := context.Background()
 
 	const (
@@ -345,7 +353,7 @@ func TestRule4_FixedMonth_Threshold100(t *testing.T) {
 		Aggregator: domain.AggregatorConfig{Type: "count"},
 		Trigger:   domain.TriggerConfig{Type: "threshold", Threshold: 100},
 	}
-	require.NoError(t, eng.RegisterRule(rule))
+	require.NoError(t, registry.Register(ctx, rule))
 
 	now := time.Now().Unix()
 
@@ -370,7 +378,7 @@ func TestRule4_FixedMonth_Threshold100(t *testing.T) {
 
 func TestRule5_Sliding7d_CountGte5Days20Follows(t *testing.T) {
 	env := setupTestEnv(t)
-	eng, bus := env.buildEngine(t)
+	eng, registry, bus := env.buildEngine(t)
 	ctx := context.Background()
 
 	const (
@@ -389,7 +397,7 @@ func TestRule5_Sliding7d_CountGte5Days20Follows(t *testing.T) {
 		Aggregator: domain.AggregatorConfig{Type: "count"},
 		Trigger:   domain.TriggerConfig{Type: "count_gte", Threshold: 20, Count: 5},
 	}
-	require.NoError(t, eng.RegisterRule(rule))
+	require.NoError(t, registry.Register(ctx, rule))
 
 	// Map: day offset from (now - 6d) → follow count
 	// 5 days with >=20 follows, 2 days with <20
@@ -414,7 +422,7 @@ func TestRule5_Sliding7d_CountGte5Days20Follows(t *testing.T) {
 
 func TestRule6_RangeWindow_ThresholdCoin(t *testing.T) {
 	env := setupTestEnv(t)
-	eng, bus := env.buildEngine(t)
+	eng, registry, bus := env.buildEngine(t)
 	ctx := context.Background()
 
 	const (
@@ -437,7 +445,7 @@ func TestRule6_RangeWindow_ThresholdCoin(t *testing.T) {
 		Aggregator: domain.AggregatorConfig{Type: "sum", Field: "coin"},
 		Trigger:    domain.TriggerConfig{Type: "threshold", Threshold: 100000},
 	}
-	require.NoError(t, eng.RegisterRule(rule))
+	require.NoError(t, registry.Register(ctx, rule))
 
 	// Use a timestamp inside the activity window
 	activityTS := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC).Unix()

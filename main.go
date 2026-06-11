@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -11,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/Jared-lu/event-rule-engine/internal/events"
+	"github.com/Jared-lu/event-rule-engine/internal/repository"
 	"github.com/Jared-lu/event-rule-engine/internal/service"
 	"github.com/Jared-lu/event-rule-engine/internal/store"
 	"github.com/Jared-lu/event-rule-engine/internal/web"
@@ -49,8 +51,19 @@ func main() {
 
 	eventBus := events.NewKafkaEventBus(producer, getenv("RULE_EVENT_TOPIC", "rule-events"))
 
+	// --- Rule Repository & Registry ---
+	ruleDAO := repository.NewRuleDAO(db)
+	if err := ruleDAO.AutoMigrate(); err != nil {
+		log.Fatalf("rule migrate: %v", err)
+	}
+	ruleRepo := repository.NewRuleRepository(ruleDAO)
+	registry, err := service.NewRuleRegistry(context.Background(), ruleRepo)
+	if err != nil {
+		log.Fatalf("registry: %v", err)
+	}
+
 	// --- Engine ---
-	engine := service.NewEngine(stateStore, eventBus, idempotency)
+	engine := service.NewEngine(registry, stateStore, eventBus, idempotency)
 
 	// --- Kafka Consumer ---
 	consumerGroup := getenv("KAFKA_CONSUMER_GROUP", "rule-engine")
