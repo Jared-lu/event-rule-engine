@@ -1,4 +1,4 @@
-package store
+package pkg
 
 import (
 	"context"
@@ -26,6 +26,5 @@ func (r *RedisIdempotency) CheckAndSet(ctx context.Context, eid int64) (bool, er
 	if err != nil {
 		return false, err
 	}
-	// SetNX 返回 true 表示写入成功（未处理过），false 表示已存在（已处理过）
 	return !ok, nil
 }

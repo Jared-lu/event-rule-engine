@@ -12,9 +12,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/Jared-lu/event-rule-engine/internal/events"
+	"github.com/Jared-lu/event-rule-engine/internal/pkg"
 	"github.com/Jared-lu/event-rule-engine/internal/repository"
 	"github.com/Jared-lu/event-rule-engine/internal/service"
-	"github.com/Jared-lu/event-rule-engine/internal/store"
 	"github.com/Jared-lu/event-rule-engine/internal/web"
 )
 
@@ -25,7 +25,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("mysql: %v", err)
 	}
-	if err := store.AutoMigrate(db); err != nil {
+	if err := repository.AutoMigrateState(db); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
 
@@ -36,8 +36,8 @@ func main() {
 	})
 
 	// --- State Store & Idempotency ---
-	stateStore := store.NewStateStore(db, rdb)
-	idempotency := store.NewRedisIdempotency(rdb)
+	stateStore := repository.NewStateStore(db, rdb)
+	idempotency := pkg.NewRedisIdempotency(rdb)
 
 	// --- Kafka Producer (EventBus) ---
 	kafkaBrokers := []string{getenv("KAFKA_BROKER", "localhost:9092")}

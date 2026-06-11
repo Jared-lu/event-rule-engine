@@ -1,4 +1,4 @@
-package store
+package repository
 
 import (
 	"context"
@@ -51,8 +51,8 @@ func NewStateStore(db *gorm.DB, rdb *redis.Client) domain.StateStore {
 	return &StateStoreImpl{db: db, redis: rdb}
 }
 
-// AutoMigrate 自动建表（开发/测试用）
-func AutoMigrate(db *gorm.DB) error {
+// AutoMigrateState 自动建表（开发/测试用）
+func AutoMigrateState(db *gorm.DB) error {
 	return db.AutoMigrate(&RuleProgressDAO{}, &RuleBucketDAO{})
 }
 

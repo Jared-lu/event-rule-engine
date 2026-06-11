@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Jared-lu/event-rule-engine/internal/domain"
+	"github.com/Jared-lu/event-rule-engine/internal/pkg"
 	"github.com/Jared-lu/event-rule-engine/internal/repository"
 	"github.com/Jared-lu/event-rule-engine/internal/service"
-	"github.com/Jared-lu/event-rule-engine/internal/store"
 )
 
 // ---- mock EventBus ----
@@ -100,7 +100,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, store.AutoMigrate(db))
+	require.NoError(t, repository.AutoMigrateState(db))
 
 	rdb := redisclient.NewClient(&redisclient.Options{Addr: redisAddr})
 	require.NoError(t, rdb.Ping(ctx).Err())
@@ -114,8 +114,8 @@ func setupTestEnv(t *testing.T) *testEnv {
 func (e *testEnv) buildEngine(t *testing.T) (*service.Engine, *service.RuleRegistry, *mockEventBus) {
 	t.Helper()
 	bus := &mockEventBus{}
-	st := store.NewStateStore(e.db, e.rdb)
-	idempotency := store.NewRedisIdempotency(e.rdb)
+	st := repository.NewStateStore(e.db, e.rdb)
+	idempotency := pkg.NewRedisIdempotency(e.rdb)
 
 	ruleDAO := repository.NewRuleDAO(e.db)
 	require.NoError(t, ruleDAO.AutoMigrate())
@@ -212,7 +212,7 @@ func TestRule1_GiftCoin_EveryMillion(t *testing.T) {
 	})
 	waitTriggered(t, bus, ruleID, 2, 3*time.Second)
 
-	st := store.NewStateStore(env.db, env.rdb)
+	st := repository.NewStateStore(env.db, env.rdb)
 	prog, err := st.GetProgress(ctx, biz, userID, ruleID)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), prog.CurrentLevel)
@@ -264,7 +264,7 @@ func TestRule2_GiftCount_Every100(t *testing.T) {
 	})
 	waitTriggered(t, bus, ruleID, 1, 3*time.Second)
 
-	st := store.NewStateStore(env.db, env.rdb)
+	st := repository.NewStateStore(env.db, env.rdb)
 	prog, err := st.GetProgress(ctx, biz, userID, ruleID)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), prog.CurrentLevel)
@@ -317,7 +317,7 @@ func TestRule3_Sliding3d_AllGte500(t *testing.T) {
 
 	waitTriggered(t, bus, ruleID, 1, 3*time.Second)
 
-	st := store.NewStateStore(env.db, env.rdb)
+	st := repository.NewStateStore(env.db, env.rdb)
 	keys := []string{
 		base.AddDate(0, 0, -2).Format("2006-01-02"),
 		base.AddDate(0, 0, -1).Format("2006-01-02"),
@@ -458,7 +458,7 @@ func TestRule6_RangeWindow_ThresholdCoin(t *testing.T) {
 
 	waitTriggered(t, bus, ruleID, 1, 3*time.Second)
 
-	st := store.NewStateStore(env.db, env.rdb)
+	st := repository.NewStateStore(env.db, env.rdb)
 	buckets, err := st.GetBuckets(ctx, biz, userID, ruleID, []string{"range"})
 	require.NoError(t, err)
 	require.Len(t, buckets, 1)
