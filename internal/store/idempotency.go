@@ -7,7 +7,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/Jared-lu/event-rule-engine/internal/service"
+	"github.com/Jared-lu/event-rule-engine/internal/domain"
 )
 
 // RedisIdempotency Redis SET NX 实现幂等去重
@@ -16,7 +16,7 @@ type RedisIdempotency struct {
 	ttl time.Duration
 }
 
-func NewRedisIdempotency(rdb *redis.Client) service.Idempotency {
+func NewRedisIdempotency(rdb *redis.Client) domain.Idempotency {
 	return &RedisIdempotency{rdb: rdb, ttl: 24 * time.Hour}
 }
 

@@ -43,3 +43,8 @@ type RuleRepository interface {
 	FindByEventType(ctx context.Context, eventType string) ([]Rule, error)
 	FindAll(ctx context.Context) ([]Rule, error)
 }
+
+// Idempotency 幂等检查，防止同一事件重复处理
+type Idempotency interface {
+	CheckAndSet(ctx context.Context, eid int64) (alreadyProcessed bool, err error)
+}
